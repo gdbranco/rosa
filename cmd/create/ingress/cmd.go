@@ -32,6 +32,7 @@ import (
 var args struct {
 	private    bool
 	labelMatch string
+	nlb        bool
 }
 
 var Cmd = &cobra.Command{
@@ -68,6 +69,13 @@ func init() {
 		"",
 		"Label match for ingress. Format should be a comma-separated list of 'key=value'. "+
 			"If no label is specified, all routes will be exposed on both routers.",
+	)
+
+	flags.BoolVar(
+		&args.nlb,
+		"nlb",
+		false,
+		"Chooses type of load balancer to be NLB.",
 	)
 
 	interactive.AddFlag(flags)
@@ -113,14 +121,9 @@ func run(cmd *cobra.Command, _ []string) {
 
 	ingressBuilder := cmv1.NewIngress()
 
-	if cmd.Flags().Changed("private") {
-		if args.private {
-			ingressBuilder = ingressBuilder.Listening(cmv1.ListeningMethodInternal)
-		} else {
-			ingressBuilder = ingressBuilder.Listening(cmv1.ListeningMethodExternal)
-		}
-	} else if interactive.Enabled() {
-		private, err := interactive.GetBool(interactive.Input{
+	private := args.private
+	if interactive.Enabled() {
+		private, err = interactive.GetBool(interactive.Input{
 			Question: "Private ingress",
 			Help:     cmd.Flags().Lookup("private").Usage,
 			Default:  args.private,
@@ -129,11 +132,31 @@ func run(cmd *cobra.Command, _ []string) {
 			r.Reporter.Errorf("Expected a valid private value: %s", err)
 			os.Exit(1)
 		}
-		if private {
-			ingressBuilder = ingressBuilder.Listening(cmv1.ListeningMethodInternal)
-		} else {
-			ingressBuilder = ingressBuilder.Listening(cmv1.ListeningMethodExternal)
+	}
+
+	nlb := args.nlb
+	if interactive.Enabled() {
+		nlb, err = interactive.GetBool(interactive.Input{
+			Question: "Network Load Balancer",
+			Help:     cmd.Flags().Lookup("nlb").Usage,
+			Default:  args.nlb,
+		})
+		if err != nil {
+			r.Reporter.Errorf("Expected a valid nlb value: %s", err)
+			os.Exit(1)
 		}
+	}
+
+	if private {
+		ingressBuilder = ingressBuilder.Listening(cmv1.ListeningMethodInternal)
+	} else {
+		ingressBuilder = ingressBuilder.Listening(cmv1.ListeningMethodExternal)
+	}
+
+	if nlb {
+		ingressBuilder = ingressBuilder.LoadBalancerType(cmv1.NetworkLoadBalancer)
+	} else {
+		ingressBuilder = ingressBuilder.LoadBalancerType(cmv1.ClassicLoadBalancer)
 	}
 
 	if len(routeSelectors) > 0 {
