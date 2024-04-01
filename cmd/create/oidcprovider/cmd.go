@@ -28,6 +28,7 @@ import (
 	"github.com/openshift/rosa/pkg/aws"
 	awscb "github.com/openshift/rosa/pkg/aws/commandbuilder"
 	"github.com/openshift/rosa/pkg/aws/tags"
+	"github.com/openshift/rosa/pkg/fedramp"
 	"github.com/openshift/rosa/pkg/interactive"
 	"github.com/openshift/rosa/pkg/interactive/confirm"
 	interactiveOidc "github.com/openshift/rosa/pkg/interactive/oidc"
@@ -78,7 +79,7 @@ func run(cmd *cobra.Command, argv []string) {
 	r := rosa.NewRuntime().WithAWS().WithOCM()
 	defer r.Cleanup()
 
-	if cmd.Flags().Changed("region") {
+	if cmd.Flags().Changed("region") && !fedramp.Enabled() {
 		r.Reporter.Errorf("The '--region' flag is not available when creating the OIDC provider. " +
 			"OIDC provider is a global AWS IAM entity.")
 		os.Exit(1)
